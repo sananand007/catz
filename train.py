@@ -1,3 +1,8 @@
+import wandb 
+from wandb.keras import WandbCallback 
+
+wandb.init(project="nightking")
+
 from keras.layers import Conv2D, UpSampling2D, MaxPooling2D
 from keras.models import Sequential
 from keras.callbacks import Callback
@@ -14,7 +19,7 @@ from keras import backend as K
 run = wandb.init(project='catz')
 config = run.config
 
-config.num_epochs = 2
+config.num_epochs = 20
 config.batch_size = 32
 config.img_dir = "images"
 config.height = 96
@@ -68,6 +73,7 @@ model.add(Conv2D(32, (3, 3), activation='relu', padding='same',
 model.add(MaxPooling2D(2, 2))
 model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
 model.add(UpSampling2D((2, 2)))
+model.add(Conv2D(16, (3,3), activation='relu', padding='same'))
 model.add(Conv2D(3, (3, 3), activation='relu', padding='same'))
 
 
@@ -89,3 +95,7 @@ model.fit_generator(my_generator(config.batch_size, train_dir),
     ImageCallback(), WandbCallback()],
     validation_steps=len(glob.glob(val_dir + "/*")) // config.batch_size,
     validation_data=my_generator(config.batch_size, val_dir))
+
+#model.fit(X_train, y_train, validationData=(X_test, y_test) , epochs=config.epochs, callbacks=[WandbCallback()])
+
+model.save(os.path.join(wandb.run.dir, "model_.h5"))
