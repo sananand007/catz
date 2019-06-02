@@ -3,7 +3,7 @@ from wandb.keras import WandbCallback
 
 wandb.init(project="nightking")
 
-from keras.layers import Conv2D, UpSampling2D, MaxPooling2D, AveragePooling3D, Conv3D, MaxPooling3D
+from keras.layers import Conv2D, UpSampling2D, MaxPooling2D, AveragePooling3D, Conv3D, MaxPooling3D, TimeDistributed, MaxPooling3D, UpSampling3D
 from keras.models import Sequential
 from keras.callbacks import Callback
 from keras.layers import Dropout
@@ -40,7 +40,7 @@ K.set_session(sess)
 run = wandb.init(project='catz')
 config = run.config
 
-config.num_epochs = 10
+config.num_epochs = 100
 config.batch_size = 64
 config.img_dir = "images"
 config.height = 96
@@ -87,16 +87,21 @@ def my_generator(batch_size, img_dir):
 #             input_images[i] = np.concatenate(imgs, axis=2)
             output_images[i] = np.array(Image.open(
                 cat_dirs[counter + i] + "/cat_result.jpg"))
-        print(f'the input size {input_images.shape}, the output size {output_images.shape}')
+        #print(f'the input size {input_images.shape}, the output size {output_images.shape}')
         yield (input_images, output_images)
         counter += batch_size
 
 
 
 model = Sequential()
-model.add(Conv3D(32, kernel_size=(3, 3, 3), activation='relu', input_shape=(5, config.height, config.width, 3), padding='same'))
-# output_size = (1, config.height, config.width, 3)
-# model.add(Reshape(output_size))
+model.add(Conv3D(32, kernel_size=(3, 3, 3), activation='relu', input_shape=(None, config.height, config.width, 3), padding='same'))
+# model.add(BatchNormalization())
+# model.add(Conv3D(16, kernel_size=(3, 3, 3), activation='relu', padding='same'))
+model.add(MaxPooling3D(pool_size=(2,2,2), padding='same'))
+#model.add(BatchNormalization())
+model.add(Dropout(0.3))
+model.add(UpSampling3D(size=(2,2,2)))
+model.add(TimeDistributed((Conv2D(3, (3,3), activation='relu', padding = "same"))))
 print(f'Shape of model {model.summary()}')
 
 
