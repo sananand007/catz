@@ -3,7 +3,7 @@ from wandb.keras import WandbCallback
 
 wandb.init(project="nightking")
 
-from keras.layers import Conv2D, UpSampling2D, MaxPooling2D
+from keras.layers import Conv2D, UpSampling2D, MaxPooling2D, AveragePooling3D, Conv3D, MaxPooling3D
 from keras.models import Sequential
 from keras.callbacks import Callback
 from keras.layers import Dropout
@@ -40,8 +40,8 @@ K.set_session(sess)
 run = wandb.init(project='catz')
 config = run.config
 
-config.num_epochs = 20
-config.batch_size = 40
+config.num_epochs = 10
+config.batch_size = 64
 config.img_dir = "images"
 config.height = 96
 config.width = 96
@@ -61,10 +61,11 @@ class ImageCallback(Callback):
         validation_X, validation_y = next(
             my_generator(15, val_dir))
         output = self.model.predict(validation_X)
-        wandb.log({
-            "input": [wandb.Image(np.concatenate(np.split(c, 5, axis=2), axis=1)) for c in validation_X],
-            "output": [wandb.Image(np.concatenate([validation_y[i], o], axis=1)) for i, o in enumerate(output)]
-        }, commit=False)
+        # wandb.log({
+        #     "input": [wandb.Image(np.concatenate(np.split(c, 5, axis=2), axis=1)) for c in validation_X],
+        #     "output": [wandb.Image(np.concatenate([validation_y[i], o], axis=1)) for i, o in enumerate(output)]
+        # }, commit=False)
+
 
 
 def my_generator(batch_size, img_dir):
@@ -73,114 +74,31 @@ def my_generator(batch_size, img_dir):
     counter = 0
     while True:
         input_images = np.zeros(
-            (batch_size, config.width, config.height, 3 * 5))
-        output_images = np.zeros((batch_size, config.width, config.height, 3))
+            (batch_size, 5, config.width, config.height, 3))
+        output_images = np.zeros((batch_size, 1, config.width, config.height, 3))
         random.shuffle(cat_dirs)
         if ((counter+1)*batch_size >= len(cat_dirs)):
             counter = 0
         for i in range(batch_size):
             input_imgs = glob.glob(cat_dirs[counter + i] + "/cat_[0-5]*")
-            #print(input_imgs)
             imgs = [Image.open(img) for img in sorted(input_imgs)]
-            input_images[i] = np.concatenate(imgs, axis=2)
+            for j, img in enumerate(imgs):
+                input_images[i][j] = img
+#             input_images[i] = np.concatenate(imgs, axis=2)
             output_images[i] = np.array(Image.open(
                 cat_dirs[counter + i] + "/cat_result.jpg"))
-        # print("Input Image \n")
-        # print(input_images.shape)
+        print(f'the input size {input_images.shape}, the output size {output_images.shape}')
         yield (input_images, output_images)
         counter += batch_size
 
-"""
-Base Model - val_perceptual_distance = 28.6 [Best score][No Image aug]
+
 
 model = Sequential()
-model.add(Conv2D(32, (3, 3), activation='relu', padding='same',
-                 input_shape=(config.height, config.width, 5 * 3)))
-model.add(MaxPooling2D(2, 2))
-#model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
-model.add(UpSampling2D((2, 2)))
-model.add(Conv2D(16, (3, 3), activation='relu', padding='same'))
-model.add(Conv2D(3, (3, 3), activation='relu', padding='same'))
-"""
-
-
-"""
-Base Model v2 - val_perceptual_distance =  28.04 [Best score][No Image aug]
-
-model = Sequential()
-model.add(Conv2D(128, (3, 3), activation='relu', padding='same',
-                 input_shape=(config.height, config.width, 5 * 3)))
-model.add(MaxPooling2D(2, 2))
-#model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
-model.add(UpSampling2D((2, 2)))
-model.add(Conv2D(64, (3, 3), activation='relu', padding='same'))
-model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
-model.add(Conv2D(3, (3, 3), activation='relu', padding='same'))
-"""
-
-"""
-Base Model v3[Trying GANs] - val_perceptual_distance =  28.04 [Best score][No Image aug]
-
-model = Sequential()
-model.add(Conv2D(64, (3, 3), activation='relu', padding='same',
-                 input_shape=(config.height, config.width, 5 * 3)))
-#model.add(MaxPooling2D(2, 2))
-model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
-#model.add(UpSampling2D((2, 2)))
-model.add(Conv2D(64, (3, 3), activation='relu', padding='same'))
-model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
-model.add(Conv2D(3, (3, 3), activation='relu', padding='same'))
-"""
-
-""" 
-Base Model v3[Trying Conv+LSTM] - val_perceptual_distance =  28.04 [Best score][No Image aug]
-"""
-model = Sequential()
-model.add(ConvLSTM2D(filters=32, kernel_size=(3,3), padding='same', input_shape=(5, config.height, config.width, 3), return_sequences=True, stateful=False))
-model.add(BatchNormalization())
-model.add(ConvLSTM2D(filters=32, kernel_size=(3,3), padding='same', return_sequences=True))
-model.add(BatchNormalization())
-model.add(ConvLSTM2D(filters=32, kernel_size=(3,3), padding='same', return_sequences=True))
-model.add(BatchNormalization())
-model.add(Dropout(0.3))
-model.add(ConvLSTM2D(filters=32, kernel_size=(3,3), padding='same', return_sequences=True))
-model.add(BatchNormalization())
-model.add(Dropout(0.3))
-LSTM_to_conv_dims = (96, 96, 3)
-model.add(Reshape(LSTM_to_conv_dims))
-model.add(Conv2D(3, (3, 3), activation='relu', padding='same'))
+model.add(Conv3D(32, kernel_size=(3, 3, 3), activation='relu', input_shape=(5, config.height, config.width, 3), padding='same'))
+# output_size = (1, config.height, config.width, 3)
+# model.add(Reshape(output_size))
 print(f'Shape of model {model.summary()}')
 
-#Modified Model
-"""
-model = Sequential()
-model.add(Conv2D(32, (3, 3), activation='relu', padding='same',
-                 input_shape=(config.height, config.width, 5 * 3)))
-
-model.add(Conv2D(64, (3,3), activation='relu', padding='same'))
-model.add(MaxPooling2D(2, 2))
-model.add(Dropout(0.3))
-
-model.add(Conv2D(128, (3,3), padding='same', activation='relu'))
-model.add(MaxPooling2D(2, 2))
-
-model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
-model.add(MaxPooling2D(2, 2))
-model.add(Dropout(0.3))
-
-model.add(UpSampling2D((2, 2)))
-
-model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
-model.add(Dropout(0.3))
-
-model.add(UpSampling2D((2, 2)))
-
-model.add(Conv2D(128, (3, 3), activation='relu', padding='same'))
-model.add(Dropout(0.3))
-
-model.add(UpSampling2D((2, 2)))
-model.add(Conv2D(3, (3, 3), activation='relu', padding='same'))
-"""
 
 
 def perceptual_distance(y_true, y_pred):
@@ -192,7 +110,7 @@ def perceptual_distance(y_true, y_pred):
     return K.mean(K.sqrt((((512+rmean)*r*r)/256) + 4*g*g + (((767-rmean)*b*b)/256)))
 
 
-sgd = SGD(lr=0.001, decay=0.03, momentum=0.9, nesterov=True)
+# sgd = SGD(lr=0.001, decay=0.03, momentum=0.9, nesterov=True)
 model.compile(optimizer='adam', loss='mse', metrics=[perceptual_distance])
 
 model.fit_generator(my_generator(config.batch_size, train_dir),
@@ -202,6 +120,7 @@ model.fit_generator(my_generator(config.batch_size, train_dir),
     ImageCallback(), WandbCallback()],
     validation_steps=len(glob.glob(val_dir + "/*")) // config.batch_size,
     validation_data=my_generator(config.batch_size, val_dir))
+
 
 #model.fit(X_train, y_train, validationData=(X_test, y_test) , epochs=config.epochs, callbacks=[WandbCallback()])
 
